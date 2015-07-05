@@ -4,7 +4,9 @@
 
 var request = require('superagent')
   , _ = require('underscore')
-  , BASE_URL = 'https://venmo.com/';
+  , BASE_URL = 'https://venmo.com/'
+  , API_URL = 'https://api.venmo.com/v1/'
+  , SANDBOX_URL = 'https://sandbox-api.venmo.com/v1/';
 
 /**
 * Module exports.
@@ -16,9 +18,9 @@ module.exports = Venmo;
 * Venmo client.
 */
 
-function Venmo (client_id, client_secret) {
-  this.client_id = client_id;
-  this.client_secret = client_secret;
+function Venmo (access_token) {
+  this.access_token = access_token;
+  this.url = API_URL;
 }
 
 /**
@@ -28,16 +30,14 @@ function Venmo (client_id, client_secret) {
 * @param {Function} callback
 * @api private
 */
-
 function transaction(query, callback) {
   var url = BASE_URL;
 
   if (query.user) {
     url += query.user + '?txn=' + query.transaction;
   } else {
-    url += '?txn=' + query.transaction
+    url += '?txn=' + query.transaction;
   }
-
   if (query.amount) {
     url += '&amount=' + query.amount;
   }
@@ -73,15 +73,101 @@ function transaction(query, callback) {
   return callback(null, url);
 }
 
+Venmo.prototype.toggleSandbox =  function(useSandbox) {
+  if(useSandbox)this.url = SANDBOX_URL;
+  else this.url = API_URL;
+
+}
+
+Venmo.prototype.testInSandbox = function(userID, note, amount, callback){
+      //Test POST
+      request
+      .post(SANDBOX_URL + "payments")
+      .query({access_token: this.access_token, user_id: userID, note: note, amount:amount})
+      .send({access_token: this.access_token})
+      .type('json')
+      .end(function (err, res) {
+        //console.log(err.message);
+        console.log(res.body);
+        if (res.body && _.isArray(res.body.data)) {
+          return callback(null, _.first(res.body.data));
+        } else {
+         callback(new Error('Error thrown by venmo.js: Bad venmo response. Check to make sure you are passing a valid phone number for a user signed up with Venmo.'));
+        }
+      });
+    }
+
 /**
-* Pay function.
+ * Charge a Venmo user.
+ *
+ * @param  {String} userID
+ * @param  {String} note
+ * @param  {Float} amount
+ * @param  {Function} callback
+ * @return {Object} data
+ * @api public
+ */
+Venmo.prototype.chargeUser = function(queryUser, note, amount, callback){
+  this.payUser(queryUser, note, -1*amount, callback);
+}
+
+/**
+ * Pay a Venmo user.
+ *
+ * @param  {String} userID
+ * @param  {String} note
+ * @param  {Float} amount
+ * @param  {Function} callback
+ * @return {Object} data
+ * @api public
+ */
+Venmo.prototype.payUser = function(queryUser, note, amount, callback){
+    //Query User
+    var query = {}
+    if (queryUser.userID) {
+      _.extend(query, {user_id:queryUser.userID});
+    }
+    if (queryUser.phone) {
+      _.extend(query, {phone:queryUser.phone});
+    }
+    if (queryUser.email) {
+      _.extend(query, {email:queryUser.email});
+    }
+    if(typeof note === "string") {
+      _.extend(query, {note:note});
+    } else {
+      throw Error("Must specifiy note as string.");
+    }
+    if(typeof amount === "number") {
+      _.extend(query, {amount:amount});
+    } else {
+      throw Error("Must specifiy amount as number.");
+    }
+    //console.log(query);
+    request
+      .post(this.url + 'payments')
+      .query(_.extend({ access_token: this.access_token }, query))
+      .send({access_token: this.access_token})
+      .type('json')
+      .end(function (err, res) {
+        if (res.body) {
+          return callback(null, res.body.data);
+        } else {
+         if(err) console.log(err.message);
+         callback(new Error('Error thrown by venmo.js: Bad venmo response.'));
+        }
+      });
+}
+
+/**
+* Pay Link function.
 *
 * @param {Object} query
 * @param {Function} callback
 * @api public
 */
 
-Venmo.prototype.pay = function (query, callback) {
+Venmo.prototype.payLink = function (query, callback) {
   transaction(_.extend(query, { transaction: 'pay' }), function (error, url) {
     if (error) {
       return callback(error);
@@ -92,14 +178,14 @@ Venmo.prototype.pay = function (query, callback) {
 }
 
 /**
-* Charge function.
+* Charge Link function.
 *
 * @param {Object} query
 * @param {Function} callback
 * @api public
 */
 
-Venmo.prototype.charge = function (query, callback) {
+Venmo.prototype.chargeLink = function (query, callback) {
   transaction(_.extend(query, { transaction: 'charge' }), function (error, url) {
     if (error) {
       return callback(error);
@@ -110,13 +196,67 @@ Venmo.prototype.charge = function (query, callback) {
 }
 
 /**
+* Get User function.
+*
+* @param {Object} query
+* @param {Function} callback
+* @return {Object} data
+* @api public
+*/
+Venmo.prototype.getCurrentUser = function (callback) {
+  return this.getUser("me", callback);
+}
+
+Venmo.prototype.getUser = function (userID, callback) {
+  var url = this.url + 'users/' + userID
+    , data = {};
+  if(userID==="me") url = this.url + 'me';
+  request.get(url)
+    .query(_.extend({access_token: this.access_token}, data))
+    .send({access_token: this.access_token})
+    .type('json')
+    .end(function (err, res) {
+      if (res.body) {
+        return callback(null, res.body.data);
+      } else {
+        callback(new Error('Error thrown by venmo.js: Bad venmo response.'));
+      }
+    });
+}
+
+/**
+ * Get Users friendlist from Venmo.
+ *
+ * @param  {String} userID
+ * @param  {Function} callback
+ * @return {Object} data
+ * @api public
+ */
+
+Venmo.prototype.getFriends = function (userID, callback) {
+  var url = this.url + 'users/'+userID+'/friends'
+    , data = {};
+  request.get(url)
+    .query(_.extend({access_token: this.access_token}, data))
+    .send({access_token: this.access_token})
+    .type('json')
+    .end(function (err, res) {
+      if (res.body && _.isArray(res.body.data)) {
+        return callback(null, res.body.data);
+      } else {
+        callback(new Error('Error thrown by venmo.js: Bad venmo response.'));
+      }
+    });
+}
+
+/**
 * Find function.
 *
 * @param {Object} query
 * @param {Function} callback
 * @api public
+* @deprecated Does not work with current Venmo API.
 */
-
 Venmo.prototype.find = function (query, callback) {
   var url = BASE_URL + 'api/v2/user/find'
     , data = {};
@@ -154,6 +294,7 @@ Venmo.prototype.find = function (query, callback) {
 * @param {String} email
 * @param {Function} callback
 * @api public
+* @deprecated Does not work with current Venmo API.
 */
 
 Venmo.prototype.findByEmail = function (email, callback) {
@@ -174,6 +315,7 @@ Venmo.prototype.findByEmail = function (email, callback) {
 * @param {Number} phone
 * @param {Function} callback
 * @api public
+* @deprecated Does not work with current Venmo API.
 */
 
 Venmo.prototype.findByPhoneNumber = function (phone, callback) {
@@ -194,6 +336,7 @@ Venmo.prototype.findByPhoneNumber = function (phone, callback) {
 * @param {Number} facebook_id
 * @param {Function} callback
 * @api public
+* @deprecated Does not work with current Venmo API.
 */
 
 Venmo.prototype.findByFacebookId = function (facebook_id, callback) {
@@ -214,6 +357,7 @@ Venmo.prototype.findByFacebookId = function (facebook_id, callback) {
 * @param {Number} foursquare_id
 * @param {Function} callback
 * @api public
+* @deprecated Does not work with current Venmo API.
 */
 
 Venmo.prototype.findByFoursquareId = function (foursquare_id, callback) {
@@ -234,6 +378,7 @@ Venmo.prototype.findByFoursquareId = function (foursquare_id, callback) {
 * @param {String} twitter_name
 * @param {Function} callback
 * @api public
+* @deprecated Does not work with current Venmo API.
 */
 
 Venmo.prototype.findByTwitter = function (twitter_name, callback) {

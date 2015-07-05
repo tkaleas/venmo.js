@@ -1,5 +1,5 @@
 var assert = require('assert')
-  , Venmo = require('../venmo');
+  , Venmo = require('../venmo.js');
 
 /**
 * venmo.findByEmail("zafriedman@gmail.com", function (error, results) { console.log(results); });
@@ -9,124 +9,246 @@ var assert = require('assert')
 * venmo.findByTwitter("_kulte", function (error, results) { console.log(results); });
 */
 
+var api_key;
+if(process.env.VENMO_API_KEY)
+  api_key = process.env.VENMO_API_KEY;
+else
+  throw new Error("Must supply a private Venmo API Key as environment variable VENMO_API_KEY. Correct Usage: \'export VENMO_API_KEY=YOUR_KEY mocha test/*.js\'")
+
+
 describe('Venmo', function () {
-  var venmo = new Venmo(1204, "QhgJFBDxXrq2ZvXBWqKLdAeZjAZJCNkX");
+  var venmo = new Venmo(api_key.toString());
+  //Sandbox testing
+  venmo.toggleSandbox(true);
+  var sandboxUserID = "145434160922624933";
+  var sandboxEmail = "venmo@venmo.com";
+  var sandboxPhone = "15555555555";
 
-  describe('client_id', function () {
-    it('should assign client_id when passed to the constructor', function () {
-       assert.equal(1204, venmo.client_id);
-    })  
+  describe('access_token', function () {
+    it('should assign access_token when passed to the constructor', function () {
+       assert.equal(venmo.access_token, api_key);
+    });
+  });
+
+  describe('Payment Links', function() {
+    //Paylink Testing
+    describe('#payLink()', function () {
+      it('should generate a proper payment url', function () {
+        var object = {
+          user: 'Zachary-Friedman'
+        , amount: 100
+        }
+        var VALID_URL = 'https://venmo.com/Zachary-Friedman?txn=pay&amount=100'
+
+        venmo.payLink(object, function (error, url) {
+          if (error) {
+            assert(false);
+          } else {
+            assert.equal(url, VALID_URL);
+          }
+        });
+      })
+      it('should accept a note property', function () {
+        var object = {
+          user: 'Zachary-Friedman'
+        , amount: 100
+        , note: 'for testing venmo.js'
+        }
+        var VALID_URL = 'https://venmo.com/Zachary-Friedman?txn=pay&amount=100&note=for+testing+venmo.js'
+
+        venmo.payLink(object, function (error, url) {
+          if (error) {
+            assert(false);
+          } else {
+            assert.equal(url, VALID_URL);
+          }
+        });
+      })
+      it('should accept a share property', function () {
+        var object = {
+          user: 'Zachary-Friedman'
+        , amount: 100
+        , share: ["Venmo"]
+        }
+        var VALID_URL = 'https://venmo.com/Zachary-Friedman?txn=pay&amount=100&share=v'
+
+        venmo.payLink(object, function (error, url) {
+          if (error) {
+            assert(false);
+          } else {
+            assert.equal(url, VALID_URL);
+          }
+        });
+      })
+      it('should append \'Venmo\' when it is not included with other valid share array elements', function () {
+        var object = {
+          user: 'Zachary-Friedman'
+        , amount: 100
+        , share: ["Facebook", "Twitter"]
+        }
+        var VALID_URL = 'https://venmo.com/Zachary-Friedman?txn=pay&amount=100&share=ftv'
+
+        venmo.payLink(object, function (error, url) {
+          if (error) {
+            assert(false);
+          } else {
+            assert.equal(url, VALID_URL);
+          }
+        });
+      })
+      it('should throw an error when passed an invalid share property', function () {
+        var object = {
+          user: 'Zachary-Friedman'
+        , amount: 100
+        , share: ["Google+"]
+        }
+
+        venmo.payLink(object, function (error, url) {
+          if (error) {
+            assert(true);
+          } else {
+            assert(false);
+          }
+        });
+      })
+      it('should accept multiple recipients', function () {})
+    })
+
+    describe('#chargeLink()', function () {
+      it('should generate a proper payment url', function () {
+        var object = {
+          user: 'Zachary-Friedman'
+        , amount: 100
+        }
+        var VALID_URL = 'https://venmo.com/Zachary-Friedman?txn=charge&amount=100'
+
+        venmo.chargeLink(object, function (error, url) {
+          if (error) {
+            assert(false);
+          } else {
+            assert.equal(url, VALID_URL);
+          }
+        });
+      })
+
+      it('should accept a note property', function () {
+        var object = {
+          user: 'Zachary-Friedman'
+        , amount: 100
+        , note: 'for testing venmo.js'
+        }
+        var VALID_URL = 'https://venmo.com/Zachary-Friedman?txn=charge&amount=100&note=for+testing+venmo.js'
+
+        venmo.chargeLink(object, function (error, url) {
+          if (error) {
+            assert(false);
+          } else {
+            assert.equal(url, VALID_URL);
+          }
+        });
+      })
+      it('should accept a share property', function () {
+        var object = {
+          user: 'Zachary-Friedman'
+        , amount: 100
+        , share: ["Venmo"]
+        }
+        var VALID_URL = 'https://venmo.com/Zachary-Friedman?txn=pay&amount=100&share=v'
+
+        venmo.payLink(object, function (error, url) {
+          if (error) {
+            assert(false);
+          } else {
+            assert.equal(url, VALID_URL);
+          }
+        });
+      it('should accept multiple recipients', function () {});
+      });
+    });
   })
-
-  describe('client_secret', function () {
-    it('should assign client_secret when passed to the constructor', function () {
-      assert.equal("QhgJFBDxXrq2ZvXBWqKLdAeZjAZJCNkX", venmo.client_secret);
-    })
-  })
-
-  describe('#pay()', function () {
-    it('should generate a proper payment url', function () {
-      var object = {
-        user: 'Zachary-Friedman'
-      , amount: 100
-      }
-      var VALID_URL = 'https://venmo.com/Zachary-Friedman?txn=pay&amount=100'
-
-      venmo.pay(object, function (error, url) {
-        if (error) {
-          assert(false);
-        } else {
-          assert.equal(url, VALID_URL);
-        }
+  describe("User Endpoint", function () {
+    describe('#getUser()', function () {
+      it('should get the current user', function (done) {
+        venmo.getCurrentUser(function (err, res){
+          assert(res.user.id);
+          done();
+        })
       });
-    })
-    it('should accept a note property', function () {
-      var object = {
-        user: 'Zachary-Friedman'
-      , amount: 100
-      , note: 'for testing venmo.js'
-      }
-      var VALID_URL = 'https://venmo.com/Zachary-Friedman?txn=pay&amount=100&note=for+testing+venmo.js'
-
-      venmo.pay(object, function (error, url) {
-        if (error) {
-          assert(false);
-        } else {
-          assert.equal(url, VALID_URL);
-        }
+      it('should get user info', function (done) {
+        venmo.getUser(sandboxUserID, function (err, res){
+          assert.equal(sandboxUserID, res.id);
+          done();
+        })
       });
-    })
-    it('should accept a share property', function () {
-      var object = {
-        user: 'Zachary-Friedman'
-      , amount: 100
-      , share: ["Venmo"]
-      }
-      var VALID_URL = 'https://venmo.com/Zachary-Friedman?txn=pay&amount=100&share=v'
-
-      venmo.pay(object, function (error, url) {
-        if (error) {
-          assert(false);
-        } else {
-          assert.equal(url, VALID_URL);
-        }
+      it('should get users friends', function (done) {
+        venmo.getFriends(sandboxUserID, function (err, res){
+          assert(res);
+          done();
+        })
       });
-    })
-    it('should append \'Venmo\' when it is not included with other valid share array elements', function () {
-      var object = {
-        user: 'Zachary-Friedman'
-      , amount: 100
-      , share: ["Facebook", "Twitter"]
-      }
-      var VALID_URL = 'https://venmo.com/Zachary-Friedman?txn=pay&amount=100&share=ftv'
+    });
+  });
 
-      venmo.pay(object, function (error, url) {
-        if (error) {
-          assert(false);
-        } else {
-          assert.equal(url, VALID_URL);
-        }
+  //Test Payments Endpoint API
+  describe("Payments Endpoint", function () {
+    describe('#payUser()', function () {
+      it('should create transaction using user ID', function (done) {
+         var userQuery = {userID: sandboxUserID};
+         venmo.payUser(userQuery, "Venmo Testing Charge", 0.10, function (err, res) {
+          assert.equal(res.payment.status,"settled");
+          done();
+        })
       });
-    })
-    it('should throw an error when passed an invalid share property', function () {
-      var object = {
-        user: 'Zachary-Friedman'
-      , amount: 100
-      , share: ["Google+"]
-      }
-
-      venmo.pay(object, function (error, url) {
-        if (error) {
-          assert(true);
-        } else {
-          assert(false);
-        }
+      it('should create transaction using email', function (done) {
+         var userQuery = {email: sandboxEmail};
+         venmo.payUser(userQuery, "Venmo Testing Charge", 0.10, function (err, res) {
+          assert.equal(res.payment.status,"settled");
+          done();
+         })
       });
-    })
-    it('should accept multiple recipients', function () {}) 
-  })
-
-  describe('#charge()', function () {
-    it('should generate a proper payment url', function () {
-      var object = {
-        user: 'Zachary-Friedman'
-      , amount: 100
-      }
-      var VALID_URL = 'https://venmo.com/Zachary-Friedman?txn=charge&amount=100'
-
-      venmo.charge(object, function (error, url) {
-        if (error) {
-          assert(false);
-        } else {
-          assert.equal(url, VALID_URL);
-        }
+      it('should create transaction using phone number', function (done) {
+         var userQuery = {phone: sandboxPhone};
+         venmo.payUser(userQuery, "Venmo Testing Charge", 0.10, function (err, res) {
+          assert.equal(res.payment.status,"settled");
+          done();
+         });
       });
-    })
-    it('should accept a note property', function () {})
-    it('should accept a share property', function () {})
-    it('should accept multiple recipients', function () {}) 
-  })
+      it('should create failed payment', function (done) {
+         var userQuery = {userID: sandboxUserID};
+        venmo.payUser(userQuery, "Venmo Testing Charge", 0.20, function (err, res) {
+          assert.equal(res.payment.status,"failed");
+          done();
+        });
+      });
+      it('should create pending payment', function (done) {
+        var userQuery = {userID: sandboxUserID};
+        venmo.payUser(userQuery, "Venmo Testing Charge", 0.30, function (err, res) {
+          assert.equal(res.payment.status,"pending");
+          done();
+        });
+      });
+    });
+    describe('#chargeUser()', function (done) {
+      it('should create settled charge', function (done) {
+        var userQuery = {userID: sandboxUserID};
+        venmo.chargeUser(userQuery, "Venmo Testing Charge", 0.10, function (err, res) {
+          assert.equal(res.payment.status,"settled");
+          assert.equal(res.payment.action,"charge");
+          done();
+        });
+      });
+      it('should create pending charge', function (done) {
+        var userQuery = {userID: sandboxUserID};
+        venmo.chargeUser(userQuery, "Venmo Testing Charge", 0.20, function (err, res) {
+          assert.equal(res.payment.status,"pending");
+          assert.equal(res.payment.action,"charge");
+          done();
+        });
+      });
+    });
+    describe('#getRecentPayments()', function () {});
+    describe('#getPaymentInfo()', function () {});
+    describe('#completePayment()', function () {});
+  });
 
-  describe('#find()', function () {
-  })
-})
+});
