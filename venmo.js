@@ -73,6 +73,10 @@ function transaction(query, callback) {
   return callback(null, url);
 }
 
+Venmo.prototype.updateToken = function(access_token){
+  this.access_token = access_token;
+}
+
 Venmo.prototype.toggleSandbox =  function(useSandbox) {
   if(useSandbox)this.url = SANDBOX_URL;
   else this.url = API_URL;
@@ -107,6 +111,7 @@ Venmo.prototype.testInSandbox = function(userID, note, amount, callback){
  * @return {Object} data
  * @api public
  */
+
 Venmo.prototype.chargeUser = function(queryUser, note, amount, callback){
   this.payUser(queryUser, note, -1*amount, callback);
 }

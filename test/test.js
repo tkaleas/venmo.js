@@ -21,6 +21,7 @@ describe('Venmo', function () {
   //Sandbox testing
   venmo.toggleSandbox(true);
   var sandboxUserID = "145434160922624933";
+  var sandboxUserName = "145434160922624933";
   var sandboxEmail = "venmo@venmo.com";
   var sandboxPhone = "15555555555";
 
